@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Users {
+  id         Int           @id @default(autoincrement())
+  email      String        @unique
+  password   String
+  lastName   String
+  firstName  String
+  lastLogin  DateTime      @default(now())
+  isVerified Boolean       @default(false)
+  role       Roles         @default(STUDENT)
+  status     StudentStatus @default(ACTIVE)
+  idCardUrl  Json
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @default(now()) @updatedAt
+
+  // Relations
+  studentBorrows   Borrows[] @relation("Student")
+  librarianBorrows Borrows[] @relation("Librarian")
+  reviews          Reviews[] @relation("UserReviews")
+}
+
+model Books {
+  id              Int        @id @default(autoincrement())
+  title           String     @unique
+  isbn            String
+  author          String
+  publisher       String
+  edition         String
+  language        String
+  category        String
+  status          BookStatus @default(AVAILABLE)
+  year            Int
+  copies          Int        @default(1)
+  availableCopies Int        @default(1)
+  borrowCount     Int        @default(0)
+  description     String
+  coverUrl        Json
+  ebookUrl        Json
+  summary         String
+  color           String
+  videoUrl        Json
+  callNumber      String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @default(now()) @updatedAt
+
+  // Relations
+  borrows Borrows[] @relation("Book")
+  reviews Reviews[] @relation("BookReviews")
+}
+
+model Borrows {
+  id          Int          @id @default(autoincrement())
+  userId      Int
+  bookId      Int
+  librarianId Int?
+  borrowDate  DateTime
+  returnDate  DateTime     @default(dbgenerated("CURRENT_TIMESTAMP + INTERVAL '7 DAYS'"))
+  status      BorrowStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
+
+  // Relations
+  user      Users  @relation("Student", fields: [userId], references: [id])
+  book      Books  @relation("Book", fields: [bookId], references: [id])
+  librarian Users? @relation("Librarian", fields: [librarianId], references: [id])
+}
+
+model Reviews {
+  id        Int      @id @default(autoincrement())
+  bookId    Int
+  userId    Int
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // Relations
+  book Books @relation("BookReviews", fields: [bookId], references: [id])
+  user Users @relation("UserReviews", fields: [userId], references: [id])
+}
+
+/// **Enums**
+enum Roles {
+  STUDENT
+  ADMIN
+  LIBRARIAN
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum BorrowStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  RETURNED
+  COLLECTED
+}
+
+enum BookStatus {
+  AVAILABLE
+  CHECKED_OUT
+  RESERVED
+  LOST
+}

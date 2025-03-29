@@ -1,147 +1,99 @@
-import Redis from "ioredis";
+import prisma from "../config/prismaClient";
+import { redis } from "../config/redisClient";
+import { borrowReminderEmail, loginReminderEmail } from "../lib/html.string";
 import { sendEmail } from "./email.service";
-import { sendSMS } from "./sms.service";
 
-const redis = new Redis();
-const CHANNEL = "reminder_channel";
-
-/**
- * Schedule a recursive reminder.
- * @param endDate - The final deadline timestamp (in seconds).
- * @param daysBefore - Days before the end date to start reminders.
- * @param email - Optional recipient email.
- * @param phone - Optional recipient phone.
- * @param message - SMS message content.
- * @param subject - Email subject.
- * @param body - Email body.
- */
-export const sendReminder = async (
-  endDate: number,
-  daysBefore: number,
-  email?: string,
-  phone?: string,
-  message?: string,
-  subject?: string,
-  body?: string
-) => {
-  const now = Math.floor(Date.now() / 1000);
-  const initialReminder = endDate - daysBefore * 24 * 60 * 60; // Convert days to seconds
-
-  if (initialReminder <= now) {
-    console.error("Initial reminder time is in the past. Skipping.");
-    return;
-  }
-
-  const reminderId = `reminder:${endDate}:${daysBefore}`;
-  const reminderData = JSON.stringify({
-    endDate,
-    daysBefore,
-    email,
-    phone,
-    message,
-    subject,
-    body,
+export const scheduleBorrowReminder = async (borrowId: number) => {
+  const borrow = await prisma.borrows.findUnique({
+    where: { id: borrowId },
+    include: { user: true },
   });
 
-  // Store in Redis sorted set
-  await redis.zadd("reminders", initialReminder, reminderId);
-  await redis.set(reminderId, reminderData);
+  if (!borrow || borrow.status === "RETURNED") return;
 
-  console.log(
-    `Scheduled first reminder for ${new Date(initialReminder * 1000)}`
+  const returnTime = new Date(borrow.returnDate).getTime();
+  const now = Date.now();
+  if (returnTime <= now) return;
+
+  const reminderTime = now + (returnTime - now) * 0.75;
+  const reminderKey = `borrow:reminder:${borrowId}`;
+
+  await redis.zadd("borrow:reminders", reminderTime, reminderKey);
+  await redis.set(
+    reminderKey,
+    JSON.stringify({ userId: borrow.userId, borrowId })
   );
-
-  // Publish to trigger processing
-  await redis.publish(CHANNEL, reminderId);
 };
 
-/**
- * Process a reminder and schedule the next one recursively.
- */
-const processReminder = async (reminderId: string) => {
-  const reminderData = await redis.get(reminderId);
-  if (!reminderData) return;
+export const scheduleLoginReminder = async (userId: number) => {
+  const user = await prisma.users.findUnique({ where: { id: userId } });
+  if (!user) return;
 
-  const { endDate, daysBefore, email, phone, message, subject, body } =
-    JSON.parse(reminderData);
-  const now = Math.floor(Date.now() / 1000);
+  const lastLoginTime = new Date(user.lastLogin).getTime();
+  const reminderTime = lastLoginTime + 14 * 24 * 60 * 60 * 1000;
+  if (Date.now() >= reminderTime) return;
 
-  if (endDate <= now) {
-    console.log(
-      `Final reminder reached for ${reminderId}. No further reminders.`
-    );
-    await redis.del(reminderId);
-    await redis.zrem("reminders", reminderId);
-    return;
-  }
-
-  // Send the reminder
-  try {
-    if (email) await sendEmail(email, subject, body);
-    if (phone) await sendSMS(phone, message);
-    console.log(`Reminder sent: ${reminderId}`);
-  } catch (error) {
-    console.error(`Failed to send reminder: ${reminderId}`, error);
-  }
-
-  // Calculate next interval
-  const nextInterval = daysBefore / 2;
-  if (nextInterval < 0.5) return; // Stop if interval becomes too small (e.g., < 12 hours)
-
-  const nextReminderTime = Math.floor(now + nextInterval * 24 * 60 * 60); // Convert days to seconds
-  const nextReminderId = `reminder:${endDate}:${nextInterval}`;
-  const nextReminderData = JSON.stringify({
-    endDate,
-    daysBefore: nextInterval,
-    email,
-    phone,
-    message,
-    subject,
-    body,
-  });
-
-  // Store next reminder
-  await redis.zadd("reminders", nextReminderTime, nextReminderId);
-  await redis.set(nextReminderId, nextReminderData);
-  await redis.publish(CHANNEL, nextReminderId);
-
-  console.log(
-    `Scheduled next reminder for ${new Date(nextReminderTime * 1000)}`
-  );
-
-  // Cleanup old reminder
-  await redis.del(reminderId);
-  await redis.zrem("reminders", reminderId);
+  await redis.zadd("login:reminders", reminderTime, userId.toString());
 };
 
-/**
- * Restore scheduled reminders on service restart.
- */
-export const restoreReminders = async () => {
-  const now = Math.floor(Date.now() / 1000);
-  const reminderKeys = await redis.zrangebyscore("reminders", "-inf", now);
+const processBorrowReminders = async () => {
+  const now = Date.now();
+  const dueReminders = await redis.zrangebyscore("borrow:reminders", 0, now);
 
-  for (const key of reminderKeys) {
-    await processReminder(key);
+  for (const reminderKey of dueReminders) {
+    const reminderData = await redis.get(reminderKey);
+    if (!reminderData) continue;
+
+    const { userId, borrowId } = JSON.parse(reminderData);
+    const borrow = await prisma.borrows.findUnique({
+      where: { id: borrowId },
+      include: { user: true },
+    });
+
+    if (!borrow || borrow.status === "RETURNED") {
+      await redis.zrem("borrow:reminders", reminderKey);
+      await redis.del(reminderKey);
+      continue;
+    }
+
+    await sendEmail({
+      html: borrowReminderEmail,
+      to: borrow.user.email,
+      subject: "Book Return Reminder",
+    });
+
+    await scheduleBorrowReminder(borrowId);
+
+    await redis.zrem("borrow:reminders", reminderKey);
+    await redis.del(reminderKey);
   }
 };
 
-/**
- * Listen for new reminders and schedule processing.
- */
-const subscribeToReminders = async () => {
-  const subscriber = new Redis();
+const processLoginReminders = async () => {
+  const now = Date.now();
+  const dueUsers = await redis.zrangebyscore("login:reminders", 0, now);
 
-  subscriber.subscribe(CHANNEL);
-  subscriber.on("message", async (_, reminderId) => {
-    const sendAt = parseInt(reminderId.split(":")[1]);
-    const now = Math.floor(Date.now() / 1000);
-    const delay = Math.max(sendAt - now, 0) * 1000;
+  for (const userId of dueUsers) {
+    const user = await prisma.users.findUnique({
+      where: { id: parseInt(userId) },
+    });
+    if (!user) {
+      await redis.zrem("login:reminders", userId);
+      continue;
+    }
 
-    setTimeout(() => processReminder(reminderId), delay);
-  });
+    await sendEmail({
+      html: loginReminderEmail,
+      to: user.email,
+      subject: "We Miss You!",
+    });
+    await redis.zrem("login:reminders", userId);
+  }
 };
 
-// Start the subscriber and restore previous reminders
-subscribeToReminders();
-restoreReminders();
+setInterval(() => {
+  processBorrowReminders();
+  processLoginReminders();
+}, 60000);
+
+

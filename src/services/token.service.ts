@@ -14,11 +14,6 @@ type TokenType = {
 };
 // **Generate JWT Tokens**
 export const generateTokens = (data: TokenType) => {
-  console.log(
-    "jwtexp",
-    typeof JWT_ACCESS_TOKEN_EXPIRES_IN,
-    typeof JWT_REFRESH_TOKEN_EXPIRES_IN
-  );
   const accessToken = jwt.sign({ ...data }, JWT_SECRET!, {
     expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
   });
@@ -62,7 +57,6 @@ export const verifyToken = (
   try {
     return jwt.verify(token, secret);
   } catch (error) {
-    console.log("error", error);
     return null;
   }
 };

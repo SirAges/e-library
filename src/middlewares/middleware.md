@@ -21,3 +21,8 @@ This middleware handles all errors in our application gracefully and sends the u
 This middleware handles all request that exceed our request limit in our application gracefully and sends the user a friendly message. 
    
     => Message: Too many requests. Please try again later.
+
+-   **Upload  Middleware**
+
+This middleware handles all request contains a file in our application. 
+   

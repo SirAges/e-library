@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 config({
-  path: `./.env.${process.env.NODE_ENV || "development"}.local`,
+  path: "./.env",
   override: true,
   debug: true,
   encoding: "utf8",
