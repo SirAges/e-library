@@ -1,0 +1,181 @@
+openapi: 3.0.1
+info:
+  title: Book Review API
+  description: API for managing book reviews, including creating, updating, deleting, and viewing reviews, as well as viewing review statistics.
+  version: 1.0.0
+
+paths:
+  /reviews/{bookId}:
+    post:
+      summary: Create a review for a specific book
+      operationId: reviewBook
+      tags:
+        - Reviews
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: ID of the book to review
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  description: Rating given to the book (e.g., 1-5)
+                comment:
+                  type: string
+                  description: Text of the review comment
+      responses:
+        '201':
+          description: Review created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  userId:
+                    type: string
+                  bookId:
+                    type: string
+                  rating:
+                    type: integer
+                  comment:
+                    type: string
+        '400':
+          description: Validation error or missing information
+        '404':
+          description: Book not found
+        '500':
+          description: Internal server error
+
+  /reviews/{bookId}/reviews:
+    get:
+      summary: Get all reviews for a specific book
+      operationId: getBookReviews
+      tags:
+        - Reviews
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: ID of the book to retrieve reviews for
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of reviews for the book
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    userId:
+                      type: string
+                    rating:
+                      type: integer
+                    comment:
+                      type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+        '404':
+          description: Book not found
+
+  /reviews/statistics/all:
+    get:
+      summary: Get review statistics for all books
+      operationId: reviewStatistics
+      tags:
+        - Reviews
+      responses:
+        '200':
+          description: Review statistics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalReviews:
+                    type: integer
+                  averageRating:
+                    type: number
+                    format: float
+                  booksWithMostReviews:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bookId:
+                          type: string
+                        reviewCount:
+                          type: integer
+        '500':
+          description: Internal server error
+
+  /reviews/{reviewId}:
+    put:
+      summary: Update a review
+      operationId: updateReview
+      tags:
+        - Reviews
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          description: ID of the review to update
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  description: Updated rating for the review (e.g., 1-5)
+                comment:
+                  type: string
+                  description: Updated comment text for the review
+      responses:
+        '200':
+          description: Review updated successfully
+        '400':
+          description: Validation error or missing information
+        '404':
+          description: Review not found
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete a review
+      operationId: deleteReview
+      tags:
+        - Reviews
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          description: ID of the review to delete
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Review deleted successfully
+        '404':
+          description: Review not found
+        '500':
+          description: Internal server error

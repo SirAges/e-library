@@ -59,8 +59,7 @@ app.use(errorMiddleware);
 app.use((_req: Request, res: Response) => {
   res.status(404).sendFile(path.join(publicPath, "./not-found.html"));
 });
-//TODO: 404 page
-// Start Server
+
 export const server = app.listen(PORT, (err) => {
   console.log(`Server running on port 5500`);
 });

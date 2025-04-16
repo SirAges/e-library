@@ -8,7 +8,7 @@
     "server": "nodemon --ext ts --exec ts-node src/server.ts",
     "db": "npx prisma migrate dev --name init",
     "redis": "redis-server",
-    "build": "tsc && cp -r src/docs dist/docs",
+    "build": "tsc",
     "start": "node dist/server.js",
     "seed": "node --max-old-space-size=4096 -r ts-node/register prisma/seed.ts",
     "deploy": "vercel --prod"
