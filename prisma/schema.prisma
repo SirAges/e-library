@@ -33,9 +33,12 @@ model Books {
   isbn            String
   author          String
   publisher       String
+  series          String
   edition         String
+  bookFormat      String
+  pages           Int
   language        String
-  category        String
+  genre           String
   status          BookStatus @default(AVAILABLE)
   year            Int
   copies          Int        @default(1)
@@ -43,11 +46,10 @@ model Books {
   borrowCount     Int        @default(0)
   description     String
   coverUrl        Json
-  ebookUrl        Json
+  ebookUrl        Json?
   summary         String
-  color           String
-  videoUrl        Json
-  callNumber      String
+  videoUrl        Json?
+  callNumber      String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @default(now()) @updatedAt
 

@@ -1,6 +1,9 @@
 node_modules/
 .env
-test.rest
-prisma/migrations/
-error.log
-combined.logdump.rdb
+*.rest
+prisma/migrations
+*.log
+dump.rdb
+.vercel
+script.js
+book.json

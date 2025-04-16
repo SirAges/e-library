@@ -19,3 +19,7 @@ exports the prisma client required to call the database
 - **Redis client**
 
 exports redis client for caching
+
+- **Cors**
+
+cors configurations

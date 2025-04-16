@@ -1,5 +1,6 @@
 import prisma from "../config/prismaClient";
-import { redis } from "../config/redisClient";
+import  redis  from "../config/redisClient";
+import { BorrowStatus } from "../lib/enums";
 import { borrowReminderEmail, loginReminderEmail } from "../lib/html.string";
 import { sendEmail } from "./email.service";
 
@@ -9,7 +10,7 @@ export const scheduleBorrowReminder = async (borrowId: number) => {
     include: { user: true },
   });
 
-  if (!borrow || borrow.status === "RETURNED") return;
+  if (!borrow || borrow.status === BorrowStatus.RETURNED) return;
 
   const returnTime = new Date(borrow.returnDate).getTime();
   const now = Date.now();
@@ -47,17 +48,21 @@ const processBorrowReminders = async () => {
     const { userId, borrowId } = JSON.parse(reminderData);
     const borrow = await prisma.borrows.findUnique({
       where: { id: borrowId },
-      include: { user: true },
+      include: { user: true, book: true },
     });
 
-    if (!borrow || borrow.status === "RETURNED") {
+    if (!borrow || borrow.status === BorrowStatus.RETURNED) {
       await redis.zrem("borrow:reminders", reminderKey);
       await redis.del(reminderKey);
       continue;
     }
 
     await sendEmail({
-      html: borrowReminderEmail,
+      html: borrowReminderEmail({
+        borrowDate: borrow.borrowDate,
+        returnDate: borrow.returnDate,
+        title: borrow.book.title,
+      }),
       to: borrow.user.email,
       subject: "Book Return Reminder",
     });
@@ -81,9 +86,19 @@ const processLoginReminders = async () => {
       await redis.zrem("login:reminders", userId);
       continue;
     }
-
+    const lastLoginTime = new Date(user.lastLogin).getTime();
+    const now = new Date();
+    const diff = now.getTime() - lastLoginTime;
+    const days = diff / (1000 * 60 * 60 * 24) + 7;
+    const book = await prisma.books.findFirst({
+      where: { year: { gte: 2020 } },
+    });
     await sendEmail({
-      html: loginReminderEmail,
+      html: loginReminderEmail({
+        bookId: book?.id!,
+        days,
+        title: book?.title!,
+      }),
       to: user.email,
       subject: "We Miss You!",
     });
@@ -94,6 +109,4 @@ const processLoginReminders = async () => {
 setInterval(() => {
   processBorrowReminders();
   processLoginReminders();
-}, 60000);
-
-
+}, 5000);

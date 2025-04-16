@@ -1,43 +1,74 @@
 import { NextFunction, Request, Response } from "express";
 import prisma from "../config/prismaClient";
-import { redis } from "../config/redisClient";
-import { REDIS_CACHE_EXPIRY as REDIS_CACHE_EXPIRY_SECONDS } from "../config/env";
+import redis from "../config/redisClient";
+import bcrypt from "bcryptjs";
+import { REDIS_CACHE_EXPIRY_SECONDS } from "../config/env";
+import {
+  dataHasher,
+  deleteMediaFromCloudinary,
+  invalidateCache,
+} from "../lib/utils";
+import { JsonObject } from "@prisma/client/runtime/library";
 
 const REDIS_CACHE_EXPIRY = parseInt(REDIS_CACHE_EXPIRY_SECONDS!);
 
 export const getUsers = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const cacheKey = "user:all";
+  const {
+    sort = "desc",
+    limit = "10",
+    page = "1",
+    sortBy = "createdAt",
+  } = req.query;
+
+  const hashedData = dataHasher(JSON.stringify(req.query));
+  const cacheKey = `user:all:${hashedData}`;
+
+  const currentPage = parseInt(page.toString(), 10);
+  const take = parseInt(limit.toString(), 10);
+  const skip = (currentPage - 1) * take;
+  const sortedBy = sortBy?.toString();
 
   try {
     const cachedUser = await redis.get(cacheKey);
     if (cachedUser) {
       res.status(200).json({
-        error: false,
         success: true,
-        message: "Users fetched successfully",
+        message: "Users fetched cache successfully",
         data: JSON.parse(cachedUser),
       });
       return;
     }
     const users = await prisma.users.findMany({
+      orderBy: { [sortedBy]: sort === "desc" ? "desc" : "asc" },
+      take,
+      skip,
       omit: {
         updatedAt: true,
         password: true,
       },
     });
-    await redis.setex(cacheKey, REDIS_CACHE_EXPIRY!, JSON.stringify(users));
+
+    const totalUsers = await prisma.users.count();
+    const totalPages = Math.ceil(totalUsers / take);
+    const nextPage = totalPages - currentPage > 0 ? currentPage + 1 : null;
+
+    await redis.setex(
+      cacheKey,
+      REDIS_CACHE_EXPIRY!,
+      JSON.stringify({ users, totalUsers, totalPages, nextPage })
+    );
 
     res.status(200).json({
-      error: false,
       success: true,
       message: "Users fetched successfully",
-      data: users,
+      data: { users, totalUsers, totalPages, nextPage },
     });
   } catch (error) {
+    console.log("error", error);
     next(error);
   }
 };
@@ -52,9 +83,8 @@ export const getUser = async (
     if (!userId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing user id param",
-        data: null,
       });
       return;
     }
@@ -64,7 +94,6 @@ export const getUser = async (
 
     if (cachedUser) {
       res.status(200).json({
-        error: false,
         success: true,
         message: "User fetched successfully.",
         data: JSON.parse(cachedUser),
@@ -82,16 +111,15 @@ export const getUser = async (
     if (!user) {
       res.status(404).json({
         error: true,
-        success: false,
+
         message: "User not found",
-        data: null,
       });
       return;
     }
+
     await redis.setex(cacheKey, REDIS_CACHE_EXPIRY!, JSON.stringify(user));
 
     res.status(200).json({
-      error: false,
       success: true,
       message: "User fetched successfully",
       data: user,
@@ -112,34 +140,35 @@ export const updateUser = async (
     if (!userId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing user id param",
-        data: null,
       });
       return;
     }
     const cacheKey = `user:${userId}`;
 
     const data = req.body;
-
+    let hashedPassword = undefined;
+    if (data?.password) {
+      hashedPassword = await bcrypt.hash(data.password, 12);
+    }
     const updatedUser = await prisma.$transaction(async (tx) => {
       return tx.users.update({
         where: { id: parseInt(userId) },
-        data,
+        data: { ...data, password: hashedPassword },
         omit: {
           updatedAt: true,
           password: true,
         },
       });
     });
-
+    await invalidateCache("user");
     await redis.setex(
       cacheKey,
       REDIS_CACHE_EXPIRY!,
       JSON.stringify(updatedUser)
     );
     res.status(200).json({
-      error: false,
       success: true,
       message: "User updated successfully",
       data: updatedUser,
@@ -160,22 +189,27 @@ export const deleteUser = async (
     if (!userId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing user id param",
-        data: null,
       });
       return;
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.users.delete({ where: { id: parseInt(userId) } });
-    });
-    await redis.del(`user:${userId}`);
-    res.status(200).json({
-      error: false,
-      success: true,
-      message: "User deleted successfully",
-      data: null,
+      const deletedUser = await tx.users.delete({
+        where: { id: parseInt(userId) },
+        select: { idCardUrl: true },
+      });
+      const idCardUrl = deletedUser.idCardUrl as JsonObject;
+      if (idCardUrl) {
+        await deleteMediaFromCloudinary(idCardUrl.public_id as string);
+      }
+      await redis.del(`user:${userId}`);
+      await invalidateCache("user");
+      res.status(200).json({
+        success: true,
+        message: "User deleted successfully",
+      });
     });
   } catch (error) {
     next(error);
@@ -289,7 +323,6 @@ export const userStatistics = async (
     const userTrend = calculateTrend(lastPeriod.count, prevPeriod.count);
 
     res.status(200).json({
-      error: false,
       success: true,
       message: "User statistics fetched successfully",
       data: {
@@ -301,6 +334,80 @@ export const userStatistics = async (
         stats: formattedStats,
         trend: userTrend,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const {
+    sort = "desc",
+    limit = "10",
+    page = "1",
+    sortBy = "createdAt",
+    query,
+  } = req.query;
+  const hashedData = dataHasher(JSON.stringify(req.query));
+  const cacheKey = `user:search:${hashedData}`;
+
+  const currentPage = parseInt(page.toString(), 10);
+  const take = parseInt(limit.toString(), 10);
+  const skip = (currentPage - 1) * take;
+  const sortedBy = sortBy?.toString();
+
+  try {
+    if (!query) {
+      res.status(400).json({
+        success: true,
+        message: "serach query is required",
+      });
+      return;
+    }
+    const searchQuery = query.toString();
+    const cachedUser = await redis.get(cacheKey);
+    if (cachedUser) {
+      res.status(200).json({
+        success: true,
+        message: "Users fetched successfully",
+        data: JSON.parse(cachedUser),
+      });
+      return;
+    }
+    const users = await prisma.users.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: searchQuery, mode: "insensitive" } },
+          { lastName: { contains: searchQuery, mode: "insensitive" } },
+        ],
+      },
+      orderBy: { [sortedBy]: sort === "desc" ? "desc" : "asc" },
+      take,
+      skip,
+      omit: {
+        updatedAt: true,
+        password: true,
+      },
+    });
+
+    const totalUsers = users.length;
+    const totalPages = Math.ceil(totalUsers / take);
+    const nextPage = totalPages - currentPage > 0 ? currentPage + 1 : null;
+
+    await redis.setex(
+      cacheKey,
+      REDIS_CACHE_EXPIRY!,
+      JSON.stringify({ users, totalUsers, totalPages, nextPage })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Users fetched successfully",
+      data: { users, totalUsers, totalPages, nextPage },
     });
   } catch (error) {
     next(error);

@@ -1,4 +1,4 @@
-import express, { Application, NextFunction, Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import path from "path";
 import errorMiddleware from "./middlewares/error.middleware";
 import authRouter from "./routes/auth.routes";
@@ -16,8 +16,10 @@ import {
 } from "./middlewares/rate.limit.middleware";
 import logger from "./services/logger.service";
 import corsOption from "./config/cors";
-
-const app: Application = express();
+import redis from "./config/redisClient";
+import setupSwagger from "./config/swagger";
+import { PORT } from "./config/env";
+import app from "./app";
 
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
@@ -36,26 +38,38 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 const publicPath = path.join(__dirname, "../public");
-
 app.use(express.static(publicPath));
 
 app.get("/api/v1", (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    error: false,
+
     message: "Welcome to la book api",
-    data: null,
   });
 });
+
 app.use("/api/v1/auth", sensitiveEndpointsLimiter, authRouter);
 app.use("/api/v1/users", userAuthorization, userRouter);
 app.use("/api/v1/books", userAuthorization, bookRouter);
 app.use("/api/v1/borrows", userAuthorization, borrowRouter);
 app.use("/api/v1/reviews", userAuthorization, reviewRouter);
-
+setupSwagger(app);
 app.use(errorMiddleware);
 
+app.use((_req: Request, res: Response) => {
+  res.status(404).sendFile(path.join(publicPath, "./not-found.html"));
+});
+//TODO: 404 page
 // Start Server
-app.listen(5500, (err) => {
+export const server = app.listen(PORT, (err) => {
   console.log(`Server running on port 5500`);
+});
+
+process.on("SIGINT", async () => {
+  console.log("closing connection...");
+  await redis.quit();
+  server.close(() => {
+    console.log("Express server closed");
+    process.exit(0);
+  });
 });

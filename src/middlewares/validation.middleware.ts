@@ -30,6 +30,7 @@ export const validateSignUp = (
     firstName: z.string(),
   });
   try {
+    console.log('req.body', req.body)
     schema.parse(req.body);
     next();
   } catch (error) {
@@ -63,17 +64,17 @@ export const validateBookCreation = (
     title: z.string().min(3),
     isbn: z.string().min(3),
     author: z.string().min(3),
+    series: z.string().min(3),
     publisher: z.string().min(3),
     edition: z.string().min(3),
     language: z.string().min(2),
-    category: z.string().min(3),
-    year: z.number(),
-    copies: z.number(),
-    availableCopies: z.number(),
-    borrowCount: z.number(),
+    genre: z.string().min(3),
+    year: z.coerce.number(),
+    copies: z.coerce.number(),
     description: z.string().min(3),
     summary: z.string().min(3),
-    color: z.string().min(3),
+    pages: z.coerce.number(),
+    bookFormat: z.string().min(3),
     callNumber: z.string().min(3),
   });
   try {

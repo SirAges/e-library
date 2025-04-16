@@ -7,8 +7,9 @@ import {
   PrismaClientValidationError,
 } from "@prisma/client/runtime/library";
 import { NODE_ENV } from "../config/env";
-import { ZodError, ZodInvalidTypeIssue } from "zod";
+import { ZodError } from "zod";
 import logger from "../services/logger.service";
+import { AppType, ErrorName } from "../lib/enums";
 
 const errorMiddleware = (
   err:
@@ -32,17 +33,17 @@ const errorMiddleware = (
     statusCode = 400;
     const cause = err.meta?.cause || "A database error occurred.";
     const modelName =
-      NODE_ENV === "development" && err.meta?.modelName
+      NODE_ENV === AppType.development && err.meta?.modelName
         ? ` (Model: ${err.meta.modelName})`
         : "";
     message = `${cause}${modelName}`;
   }
 
   // Handle JWT Errors
-  else if (err.name === "JsonWebTokenError") {
+  else if (err.name === ErrorName.JsonWebTokenError) {
     statusCode = 401;
     message = "Invalid authentication token.";
-  } else if (err.name === "TokenExpiredError") {
+  } else if (err.name === ErrorName.TokenExpiredError) {
     statusCode = 401;
     message = "Token expired. Please log in again.";
   }
@@ -51,30 +52,33 @@ const errorMiddleware = (
   else if (err instanceof SyntaxError && "body" in err) {
     statusCode = 400;
     message = "Invalid JSON payload.";
-  }
-  if (err.name === "Not Found") {
+  } else if (err.name === ErrorName.NotFound) {
     statusCode = 404;
     message = "Resource or Route not found";
-  }
-  if (err.name === "File Upload Error") {
+  } else if (err.name === ErrorName.FileUploadError) {
     statusCode = 400;
     message = "No file uploaded";
-  }
-  if (err instanceof ZodError) {
+  } else if (err instanceof ZodError) {
     const firstError = err.errors[0];
     statusCode = 400;
     message = `Property ${firstError.path[0]}: ${firstError.message}`;
   }
+  // cloudinary error
+  // @ts-ignore
+  else if (err?.error?.hostname) {
+    statusCode = 404;
+    message = "Error uploading file to cloud please try again";
+  }
   // Log full error details in development mode
-  if (NODE_ENV !== "production") {
-    console.error("Error details:", err);
+  else NODE_ENV !== AppType.production;
+  {
+    console.error("Error details:", JSON.stringify(err, null, 2));
   }
   logger.error(
     `Method: ${req.method}, Url: ${req.url}, StatusCode: ${statusCode}, Message: ${message}`
   );
 
   res.status(statusCode).json({
-    success: false,
     error: true,
     message,
   });

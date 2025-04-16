@@ -1,0 +1,208 @@
+openapi: 3.0.1
+info:
+  title: User Management API
+  description: API for managing users, including retrieving, updating, deleting users, viewing user statistics, and searching users.
+  version: 1.0.0
+
+paths:
+  /users:
+    get:
+      summary: Get a list of all users
+      operationId: getUsers
+      tags:
+        - Users
+      parameters:
+        - name: sort
+          in: query
+          description: The sorting order
+        - name: limit
+          in: query
+          description: The number of results returned
+        - name: page
+          in: query
+          description: The page number
+        - name: sortBy
+          in: query
+          description: Field to sort by
+      responses:
+        '200':
+          description: A list of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    username:
+                      type: string
+                    email:
+                      type: string
+                    role:
+                      type: string
+        '500':
+          description: Internal server error
+
+  /users/{userId}:
+    get:
+      summary: Get a specific user by ID
+      operationId: getUser
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID of the user to retrieve
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A user object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+
+        '404':
+          description: User not found
+        '500':
+          description: Internal server error
+  
+  /users/{userId}:
+    put:
+      summary: Update a specific user by ID
+      operationId: updateUser
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID of the user to update
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: New username for the user
+                email:
+                  type: string
+                  description: New email address for the user
+                role:
+                  type: string
+                  description: New role for the user
+      responses:
+        '200':
+          description: User updated successfully
+        '400':
+          description: Validation error or missing information
+        '404':
+          description: User not found
+        '500':
+          description: Internal server error
+  
+  /users/{userId}:
+    delete:
+      summary: Delete a specific user by ID
+      operationId: deleteUser
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID of the user to delete
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          description: User not found
+        '500':
+          description: Internal server error
+
+  /users/statistics/all:
+    get:
+      summary: Get user statistics
+      operationId: userStatistics
+      tags:
+        - Users
+      responses:
+        '200':
+          description: User statistics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalUsers:
+                    type: integer
+                  activeUsers:
+                    type: integer
+                  usersByRole:
+                    type: object
+                    additionalProperties:
+                      type: integer
+        '500':
+          description: Internal server error
+
+  /users/search/all:
+    get:
+      summary: Search for users
+      operationId: searchUsers
+      tags:
+        - Users
+      parameters:
+        - name: sort
+          in: query
+          description: The sorting order
+        - name: limit
+          in: query
+          description: The number of results returned
+        - name: page
+          in: query
+          description: The page number
+        - name: sortBy
+          in: query
+          description: Field to sort by
+        - name: query
+          in: query
+          description: Search query
+          required: true
+      responses:
+        '200':
+          description: List of users that match the search criteria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    username:
+                      type: string
+                    email:
+                      type: string
+                    role:
+                      type: string
+        '500':
+          description: Internal server error

@@ -1,5 +1,6 @@
 import { Request as ExpressRequest, Response, NextFunction } from "express";
 import cloudinary from "../config/cloudinary";
+import { ErrorName } from "../lib/enums";
 
 interface Request extends ExpressRequest {
   uploadedFiles?: Record<string, CloudinaryFile>;
@@ -11,16 +12,15 @@ const uploadFile = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const jsonBody = req.body;
     if (
       (!req.files || Object.keys(req.files).length === 0) &&
       req.method === "PUT"
     ) {
       next();
-      return
+      return;
     } else if (!req.files || Object.keys(req.files).length === 0) {
       const error = new Error();
-      error.name = "File Upload Error";
+      error.name = ErrorName.FileUploadError;
       throw error;
     }
 
@@ -55,18 +55,13 @@ const uploadFile = async (
         timeout: 60000,
       };
 
-      try {
-        req.body = jsonBody;
-        const result = await cloudinary.uploader.upload(base64File, options);
-        req.uploadedFiles![fieldName] = {
-          secure_url: result.secure_url,
-          format: result.format,
-          bytes: result.bytes,
-          public_id: result.public_id,
-        };
-      } catch (error) {
-        next(error);
-      }
+      const result = await cloudinary.uploader.upload(base64File, options);
+      req.uploadedFiles![fieldName] = {
+        secure_url: result.secure_url,
+        format: result.format,
+        bytes: result.bytes,
+        public_id: result.public_id,
+      };
     });
 
     await Promise.all(uploadPromises);

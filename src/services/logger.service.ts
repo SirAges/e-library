@@ -1,7 +1,9 @@
+import { AppType } from "../lib/enums";
+
 const winston = require("winston");
 
 const logger = winston.createLogger({
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
+  level: process.env.NODE_ENV === AppType.production ? "info" : "debug",
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),

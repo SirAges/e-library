@@ -1,5 +1,3 @@
-
-
 declare interface CloudinaryFile {
   secure_url: string;
   format: string;

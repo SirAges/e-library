@@ -71,7 +71,9 @@ exports all controllers required to manage users
 
     => get statistics for all borrowed books    [GET, /borrows/statistics/all]
 
-    => cancel borrowed book [PUT, /borrows/borrowId/user/userId]
+    => cancel borrowed book [PUT, /borrows/borrowId/cancel]
+
+    => update borrowed book status [PUT, /borrows/borrowId/status-update]
 
 -   **Review Routes**
 

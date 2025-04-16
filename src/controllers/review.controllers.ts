@@ -1,7 +1,8 @@
 import { NextFunction, Request as ExpressRequest, Response } from "express";
 import prisma from "../config/prismaClient";
-import { redis } from "../config/redisClient";
-import { REDIS_CACHE_EXPIRY as REDIS_CACHE_EXPIRY_SECONDS } from "../config/env";
+import redis from "../config/redisClient";
+import { REDIS_CACHE_EXPIRY_SECONDS } from "../config/env";
+import { dataHasher, invalidateCache } from "../lib/utils";
 
 interface Request extends ExpressRequest {
   user?: {
@@ -26,27 +27,24 @@ export const reviewBook = async (
     if (!rating) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "You can not review this book without specifying rating",
-        data: null,
       });
       return;
     }
     if (!comment) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "You can not review this book without commenting",
-        data: null,
       });
       return;
     }
     if (!bookId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing book id param",
-        data: null,
       });
       return;
     }
@@ -54,11 +52,9 @@ export const reviewBook = async (
       where: { userId, bookId: parseInt(bookId) },
     });
     if (userAlreadyReviewed) {
-      res.status(404).json({
+      res.status(409).json({
         error: true,
-        success: false,
         message: "You already reviewed this book",
-        data: null,
       });
       return;
     }
@@ -72,14 +68,13 @@ export const reviewBook = async (
       return createdReview;
     });
     const cacheKey = `review:${createdReview.id}`;
-
+    await invalidateCache("review");
     await redis.setex(
       cacheKey,
       REDIS_CACHE_EXPIRY!,
       JSON.stringify(createdReview)
     );
     res.status(200).json({
-      error: false,
       success: true,
       message: "Review created successfully",
       data: createdReview,
@@ -95,23 +90,32 @@ export const getBookReviews = async (
   next: NextFunction
 ) => {
   const { bookId } = req.params;
+  const {
+    sort = "desc",
+    limit = "10",
+    page = "1",
+    sortBy = "createdAt",
+  } = req.query;
+  const currentPage = parseInt(page.toString(), 10);
+  const take = parseInt(limit.toString(), 10);
+  const skip = (currentPage - 1) * take;
+  const sortedBy = sortBy?.toString();
 
   if (!bookId) {
     res.status(400).json({
       error: true,
-      success: false,
+
       message: "Missing book id param",
-      data: null,
     });
     return;
   }
-  const cacheKey = `review:${bookId}:all`;
+  const hashedData = dataHasher(JSON.stringify(req.query));
+  const cacheKey = `review:${bookId}:all:${hashedData}`;
 
   try {
     const cachedReview = await redis.get(cacheKey);
     if (cachedReview) {
       res.status(200).json({
-        error: false,
         success: true,
         message: "Reviews fetched successfully",
         data: JSON.parse(cachedReview),
@@ -120,17 +124,36 @@ export const getBookReviews = async (
     }
     const reviews = await prisma.reviews.findMany({
       where: { bookId: parseInt(bookId) },
+      orderBy: { [sortedBy]: sort === "desc" ? "desc" : "asc" },
+      take,
+      skip,
       omit: {
         updatedAt: true,
       },
     });
-    await redis.setex(cacheKey, REDIS_CACHE_EXPIRY!, JSON.stringify(reviews));
+    const totalReviews = await prisma.reviews.count({
+      where: { bookId: parseInt(bookId) },
+    });
+    const totalPages = Math.ceil(totalReviews / take);
+    const nextPage = totalPages - currentPage > 0 ? currentPage + 1 : null;
+    const totalRatings = reviews.reduce((acc, cur) => acc + cur.rating, 0);
+    const averageRating = parseInt((totalRatings / totalReviews).toFixed(1));
+    await redis.setex(
+      cacheKey,
+      REDIS_CACHE_EXPIRY!,
+      JSON.stringify({
+        reviews,
+        totalReviews,
+        averageRating,
+        totalPages,
+        nextPage,
+      })
+    );
 
     res.status(200).json({
-      error: false,
       success: true,
       message: "Reviews fetched successfully",
-      data: reviews,
+      data: { reviews, totalReviews, averageRating, totalPages, nextPage },
     });
   } catch (error) {
     next(error);
@@ -150,27 +173,24 @@ export const updateReview = async (
     if (!rating) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "You can not review this book without specifying rating",
-        data: null,
       });
       return;
     }
     if (!comment) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "You can not review this book without commenting",
-        data: null,
       });
       return;
     }
     if (!reviewId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing review id param",
-        data: null,
       });
       return;
     }
@@ -185,6 +205,7 @@ export const updateReview = async (
         },
       });
     });
+    await invalidateCache("review");
 
     await redis.setex(
       cacheKey,
@@ -192,7 +213,6 @@ export const updateReview = async (
       JSON.stringify(updatedReview)
     );
     res.status(200).json({
-      error: false,
       success: true,
       message: "Review updated successfully",
       data: updatedReview,
@@ -213,24 +233,22 @@ export const deleteReview = async (
     if (!reviewId) {
       res.status(400).json({
         error: true,
-        success: false,
+
         message: "Missing review id param",
-        data: null,
       });
       return;
     }
 
     await prisma.$transaction(async (tx) => {
       await tx.reviews.delete({ where: { id: parseInt(reviewId) } });
-    });
 
-    await redis.del(`review:${reviewId}`);
+      await redis.del(`review:${reviewId}`);
+      await invalidateCache("review");
 
-    res.status(200).json({
-      error: false,
-      success: true,
-      message: "Review deleted successfully",
-      data: null,
+      res.status(200).json({
+        success: true,
+        message: "Review deleted successfully",
+      });
     });
   } catch (error) {
     next(error);
@@ -251,64 +269,62 @@ export const reviewStatistics = async (
       _count: { id: true },
     });
 
-    const stats = await prisma.reviews.groupBy({
-      by: ["bookId", "createdAt"],
+    const rawStats = await prisma.reviews.findMany({
       where: { createdAt: { gte: threeYearsAgo } },
-      _count: { id: true },
-      _avg: { rating: true },
+      select: {
+        createdAt: true,
+        rating: true,
+      },
       orderBy: { createdAt: "asc" },
     });
 
-    const bookIds = [...new Set(stats.map((s) => s.bookId))];
-    const books = await prisma.books.findMany({
-      where: { id: { in: bookIds } },
-      select: { id: true, title: true },
-    });
+    const monthStatsMap = new Map();
 
-    const bookMap = new Map(books.map((book) => [book.id, book.title]));
-
-    const bookStatsMap = new Map();
-
-    stats.forEach((item) => {
+    rawStats.forEach((item) => {
       const date = new Date(item.createdAt);
-      const title = bookMap.get(item.bookId) || "Unknown Book";
-      const key = `${item.bookId}-${date.getFullYear()}-${date.getMonth() + 1}`;
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const key = `${year}-${month}`;
 
-      if (!bookStatsMap.has(key)) {
-        bookStatsMap.set(key, {
-          title,
-          year: date.getFullYear(),
-          month: date.getMonth() + 1,
-          averageRating: 0,
+      if (!monthStatsMap.has(key)) {
+        monthStatsMap.set(key, {
+          year,
+          month,
+          totalRating: 0,
           count: 0,
         });
       }
 
-      const bookData = bookStatsMap.get(key);
-      bookData.averageRating = item._avg.rating
-        ? parseFloat(item._avg.rating.toFixed(2))
-        : 0;
-      bookData.count += item._count.id;
+      const entry = monthStatsMap.get(key);
+      entry.totalRating += item.rating;
+      entry.count += 1;
     });
 
-    const formattedStats = Array.from(bookStatsMap.values());
+    const formattedStats = Array.from(monthStatsMap.values()).map((item) => ({
+      year: item.year,
+      month: item.month,
+      averageRating: parseFloat((item.totalRating / item.count).toFixed(2)),
+      count: item.count,
+    }));
 
-    function calculateTrend(current: number, previous: number) {
+    const calculateTrend = (current: number, previous: number) => {
       if (!previous) return { growth: current > 0, percentage: 100 };
       const change = ((current - previous) / previous) * 100;
       return {
         growth: change > 0,
         percentage: parseFloat(change.toFixed(2)),
       };
-    }
+    };
 
-    const lastPeriod = formattedStats.at(-1) || { count: 0 };
-    const prevPeriod = formattedStats.at(-2) || { count: 0 };
+    const lastPeriod = formattedStats.at(-1) || { averageRating: 0 };
+    const prevPeriod = formattedStats.at(-2) || { averageRating: 0 };
 
-    const reviewTrend = calculateTrend(lastPeriod.count, prevPeriod.count);
+    const reviewTrend = calculateTrend(
+      lastPeriod.averageRating,
+      prevPeriod.averageRating
+    );
 
     res.status(200).json({
-      error: false,
       success: true,
       message: "Review statistics fetched successfully",
       data: {
@@ -316,6 +332,89 @@ export const reviewStatistics = async (
         stats: formattedStats,
         trend: reviewTrend,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchBookReviews = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { bookId } = req.params;
+  const {
+    sort = "desc",
+    limit = "10",
+    page = "1",
+    sortBy = "createdAt",
+    rate,
+    query,
+  } = req.query;
+  const currentPage = parseInt(page.toString(), 10);
+  const take = parseInt(limit.toString(), 10);
+  const skip = (currentPage - 1) * take;
+  const sortedBy = sortBy?.toString();
+
+  if (!bookId) {
+    res.status(400).json({
+      error: true,
+
+      message: "Missing book id param",
+    });
+    return;
+  }
+  const hashedData = dataHasher(JSON.stringify(req.query));
+  const cacheKey = `review:${bookId}:search:${hashedData}`;
+
+  try {
+    if (!query) {
+      res.status(400).json({
+        success: true,
+        message: "serach query is required",
+      });
+      return;
+    }
+    const searchQuery = query.toString();
+    const cachedReview = await redis.get(cacheKey);
+    if (cachedReview) {
+      res.status(200).json({
+        success: true,
+        message: "Reviews fetched successfully",
+        data: JSON.parse(cachedReview),
+      });
+      return;
+    }
+    const reviews = await prisma.reviews.findMany({
+      where: {
+        bookId: parseInt(bookId),
+        OR: [
+          { comment: { contains: searchQuery, mode: "insensitive" } },
+          { rating: { equals: parseInt(rate?.toString()!) } },
+        ],
+      },
+      orderBy: { [sortedBy]: sort === "desc" ? "desc" : "asc" },
+      take,
+      skip,
+      omit: {
+        updatedAt: true,
+      },
+    });
+    const totalReviews = await prisma.reviews.count();
+    const totalPages = Math.ceil(totalReviews / take);
+    const nextPage = totalPages - currentPage > 0 ? currentPage + 1 : null;
+
+    await redis.setex(
+      cacheKey,
+      REDIS_CACHE_EXPIRY!,
+      JSON.stringify({ reviews, totalReviews, totalPages, nextPage })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Reviews fetched successfully",
+      data: JSON.stringify({ reviews, totalReviews, totalPages, nextPage }),
     });
   } catch (error) {
     next(error);

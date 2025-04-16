@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { redis } from "../config/redisClient";
+import redis from "../config/redisClient";
 import logger from "../services/logger.service";
 import { RateLimiterRedis } from "rate-limiter-flexible";
 const { rateLimit } = require("express-rate-limit");
@@ -21,18 +21,18 @@ export const rateLimiter = (
     .then(() => next())
     .catch(() => {
       logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
-      res.status(429).json({ success: false, message: "Too many requests" });
+      res.status(429).json({ message: "Too many requests" });
     });
 };
 
 export const sensitiveEndpointsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
-  standardHeaders: true,
+  standardHeaders: false,
   legacyHeaders: false,
   handler: (req: Request, res: Response, next: NextFunction) => {
     logger.warn(`Sensitive endpoint rate limit exceeded for IP: ${req.ip}`);
-    res.status(429).json({ success: false, message: "Too many requests" });
+    res.status(429).json({ message: "Too many requests" });
   },
   store: new RedisStore({
     //@ts-ignore

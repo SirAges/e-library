@@ -98,7 +98,7 @@ This model defines the structure of each book in the database
 
 -   **Review Model**
 
-This model defines the structure of each book review book in the database
+This model defines the structure of each book review in the database
 below are the fields
    
     =>  id

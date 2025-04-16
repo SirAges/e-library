@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Document</title>
+  </head>
+  <body>
+    <div
+      style="
+        background-color: whitesmoke;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 10px;
+        padding: 10px;
+        font-family: Verdana, Geneva, Tahoma, sans-serif;
+      "
+    >
+      <h1
+        style="
+          text-align: center;
+          color: burlywood;
+          border-bottom: 1px solid;
+          padding: 10px;
+        "
+      >
+        OTP Verification Email
+      </h1>
+
+      <p style="text-align: center">Use this OTP to verify your email</p>
+      <p style="text-align: center; font-size: 1rem">
+        If you did not initiate this message you can ignore it
+      </p>
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          background-color: burlywood;
+          width: 200px;
+          align-items: center;
+          padding: 10px;
+          color: whitesmoke;
+          border-radius: 5px;
+        "
+      >
+        <p style="font-size: 3rem; font-weight: 700; margin: 0">${otp}</p>
+      </div>
+      <p>do not share this code with any one</p>
+      @copywrite &copy; Labook ${year}
+    </div>
+  </body>
+</html>

@@ -7,8 +7,9 @@ import {
   JWT_SECRET,
   NODE_ENV,
 } from "../config/env";
+import { AppType } from "../lib/enums";
 type TokenType = {
-  id: number;
+  userId: number;
   role: string;
   email: string;
 };
@@ -39,12 +40,11 @@ export const setAppCookie = (
     ) => void;
   },
   token: string,
-  name: string,
-  maxAge: number = 5000
+  name: string
 ) => {
   res.cookie(name, token, {
     httpOnly: false,
-    secure: NODE_ENV === "production",
+    secure: NODE_ENV === AppType.production,
     sameSite: "none",
     maxAge: 1000 * 60 * 5,
   });
