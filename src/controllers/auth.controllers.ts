@@ -139,7 +139,7 @@ export const signUp = async (
        const verificationToken = jwt.sign({otp,email }, JWT_SECRET!, {
           expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
         });
-        const url = `${CLIENT_URL}?token=${verificationToken}`;
+        const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
       const html = verificationEmail({ url });
       const subject = "Email Verification";
 
@@ -347,7 +347,7 @@ export const forgotPassword = async (
         const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
           expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
         });
-        const url = `${CLIENT_URL}?token=${verificationToken}`;
+        const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
       const html = verificationEmail({ url });
       const subject = "Password Reset OTP";
       setAppCookie(res, hashedOTP, "emailVerificationOTP");
