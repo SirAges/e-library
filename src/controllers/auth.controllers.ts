@@ -2,7 +2,7 @@ import { NextFunction, Request as ExpressRequest, Response } from "express";
 import prisma from "../config/prismaClient";
 import bcrypt from "bcryptjs";
 import { generateOTP } from "../lib/utils";
-import { JWT_REFRESH_SECRET } from "../config/env";
+import { CLIENT_URL, JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_SECRET, JWT_SECRET } from "../config/env";
 import { sendEmail } from "../services/email.service";
 import {
   generateTokens,
@@ -11,6 +11,7 @@ import {
 } from "../services/token.service";
 import { scheduleLoginReminder } from "../services/reminder.service";
 import { verificationEmail } from "../lib/html.string";
+import jwt from "jsonwebtoken";
 
 interface Request extends ExpressRequest {
   uploadedFiles?: Record<string, CloudinaryFile>;
@@ -100,7 +101,7 @@ export const signUp = async (
   res: Response,
   next: NextFunction
 ) => {
-  console.log('req.body', req.body)
+  console.log("req.body", req.body);
   const { email, password, lastName, firstName } = req.body;
   const { idCardUrl } = req.uploadedFiles!;
   await prisma.$transaction(async (tx) => {
@@ -135,15 +136,17 @@ export const signUp = async (
       }
       const otp = generateOTP();
       const hashedOTP = bcrypt.hashSync(otp, 12);
-      const html = verificationEmail({ otp });
+       const verificationToken = jwt.sign({otp,email }, JWT_SECRET!, {
+          expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
+        });
+        const url = `${CLIENT_URL}?token=${verificationToken}`;
+      const html = verificationEmail({ url });
       const subject = "Email Verification";
 
       // If user exists and is NOT verified, send another OTP
       if (existingUser && !existingUser.isVerified) {
         setAppCookie(res, hashedOTP, "emailVerificationOTP");
-
         await sendEmail({ to: email, html, subject });
-
         res.status(201).json({
           success: true,
           message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
@@ -341,7 +344,11 @@ export const forgotPassword = async (
       }
       const otp = generateOTP();
       const hashedOTP = bcrypt.hashSync(otp, 12);
-      const html = verificationEmail({ otp });
+        const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
+          expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
+        });
+        const url = `${CLIENT_URL}?token=${verificationToken}`;
+      const html = verificationEmail({ url });
       const subject = "Password Reset OTP";
       setAppCookie(res, hashedOTP, "emailVerificationOTP");
       await sendEmail({ to: email, html, subject });

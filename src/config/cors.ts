@@ -1,9 +1,11 @@
+import { CLIENT_URL } from "./env";
+
 const corsOption = {
   origin: (
     origin: string,
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
-    const allowedOrigins = ["http://localhost:5500", "http://localhost:3000"];
+    const allowedOrigins = ["http://localhost:5500", CLIENT_URL];
 
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);

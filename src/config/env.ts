@@ -8,7 +8,8 @@ config({
 export const {
   NODE_ENV,
   DATABASE_URL,
-  REDIS_URL,REDIS_PASSWORD,
+  REDIS_URL,
+  REDIS_PASSWORD,
   PORT,
   EMAIL_HOST,
   EMAIL_PORT,
@@ -22,4 +23,5 @@ export const {
   CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET,
+  CLIENT_URL,
 } = process.env;

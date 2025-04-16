@@ -1,8 +1,6 @@
 import prisma from "../src/config/prismaClient";
 import books from "../books.json";
-import fs from "fs";
-//@ts-ignore
-import ColorThief from "colorthief";
+
 
 const seedDB = async () => {
   try {
@@ -47,6 +45,7 @@ const seedDB = async () => {
       const randomCopies = Math.floor(Math.random() * (max - min + 1)) + min;
       const newBook = {
         copies: randomCopies,
+        availableCopies: randomCopies / 2,
         genre: firstGenre,
         description: cleanedDescription,
         summary: cleanedDescription.slice(0, 100),
@@ -83,15 +82,5 @@ function extractYear(dateStr) {
   }
 }
 
-// Combined function to get HEX color
-//@ts-ignore
-async function getImageColor(imageUrl) {
-  try {
-    const [r, g, b] = await ColorThief.getColor(imageUrl);
-    return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
-  } catch (err) {
-    throw new Error("Failed to extract color");
-  }
-}
 
 seedDB();

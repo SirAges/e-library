@@ -1,4 +1,5 @@
-export const verificationEmail = ({ otp }: { otp: string }) => {
+
+export const verificationEmail = ({ url }: { url: string }) => {
   const year = new Date().getFullYear();
 
   return `
@@ -14,7 +15,7 @@ export const verificationEmail = ({ otp }: { otp: string }) => {
           <p>Use this OTP to verify your email</p>
           <p style="font-size: 1rem;">If you did not initiate this request, you can ignore it</p>
           <div style="display: inline-block; background-color: burlywood; padding: 10px 20px; color: whitesmoke; border-radius: 5px; margin: 10px 0;">
-            <p style="font-size: 3rem; font-weight: bold; margin: 0;">${otp}</p>
+            <a href="${url}" style="font-size: 3rem; font-weight: bold; margin: 0;">Verify Email</a>
           </div>
           <p>Do not share this code with anyone</p>
           <p>© Labook ${year}</p>

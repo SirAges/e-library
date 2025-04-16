@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
-  title: La Book API
-  description: API for la book university e-library , etc.
+  title: Readora
+  description: API for Readora university e-library , etc.
   version: 1.0.0
   contact:
     name: Support
