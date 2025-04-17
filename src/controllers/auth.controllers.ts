@@ -2,7 +2,12 @@ import { NextFunction, Request as ExpressRequest, Response } from "express";
 import prisma from "../config/prismaClient";
 import bcrypt from "bcryptjs";
 import { generateOTP } from "../lib/utils";
-import { CLIENT_URL, JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_SECRET, JWT_SECRET } from "../config/env";
+import {
+  CLIENT_URL,
+  JWT_ACCESS_TOKEN_EXPIRES_IN,
+  JWT_REFRESH_SECRET,
+  JWT_SECRET,
+} from "../config/env";
 import { sendEmail } from "../services/email.service";
 import {
   generateTokens,
@@ -104,83 +109,87 @@ export const signUp = async (
   console.log("req.body", req.body);
   const { email, password, lastName, firstName } = req.body;
   const { idCardUrl } = req.uploadedFiles!;
-  await prisma.$transaction(async (tx) => {
-    try {
-      if (!email) {
-        res.status(400).json({
-          error: true,
-          message: `Your email is required to create an account. Please enter a valid email.`,
-        });
-        return;
-      }
+  await prisma.$transaction(
+    async (tx) => {
+      try {
+        if (!email) {
+          res.status(400).json({
+            error: true,
+            message: `Your email is required to create an account. Please enter a valid email.`,
+          });
+          return;
+        }
 
-      if (!password) {
-        res.status(400).json({
-          error: true,
-          message: `Your password is required to create an account. Please enter a secure password.`,
-        });
-        return;
-      }
+        if (!password) {
+          res.status(400).json({
+            error: true,
+            message: `Your password is required to create an account. Please enter a secure password.`,
+          });
+          return;
+        }
 
-      const existingUser = await tx.users.findFirst({
-        where: { email },
-        select: { isVerified: true },
-      });
-      // If user exists and is verified, return message
-      if (existingUser && existingUser.isVerified) {
-        res.status(409).json({
-          error: true,
-          message: `An account with this email address (${email}) already exists. Please sign in or use a different email.`,
+        const existingUser = await tx.users.findFirst({
+          where: { email },
+          select: { isVerified: true },
         });
-        return;
-      }
-      const otp = generateOTP();
-      const hashedOTP = bcrypt.hashSync(otp, 12);
-       const verificationToken = jwt.sign({otp,email }, JWT_SECRET!, {
+        // If user exists and is verified, return message
+        if (existingUser && existingUser.isVerified) {
+          res.status(409).json({
+            error: true,
+            message: `An account with this email address (${email}) already exists. Please sign in or use a different email.`,
+          });
+          return;
+        }
+        const otp = generateOTP();
+        const hashedOTP = bcrypt.hashSync(otp, 12);
+        const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
           expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
         });
         const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
-      const html = verificationEmail({ url });
-      const subject = "Email Verification";
+        const html = verificationEmail({ url });
+        const subject = "Email Verification";
 
-      // If user exists and is NOT verified, send another OTP
-      if (existingUser && !existingUser.isVerified) {
+        // If user exists and is NOT verified, send another OTP
+        if (existingUser && !existingUser.isVerified) {
+          setAppCookie(res, hashedOTP, "emailVerificationOTP");
+          await sendEmail({ to: email, html, subject });
+          res.status(201).json({
+            success: true,
+            message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
+          });
+          return;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Store user but not verified yet
+        await tx.users.create({
+          data: {
+            email,
+            password: hashedPassword,
+            lastName,
+            firstName,
+            //@ts-ignore
+            idCardUrl,
+          },
+        });
+
         setAppCookie(res, hashedOTP, "emailVerificationOTP");
+
         await sendEmail({ to: email, html, subject });
+
         res.status(201).json({
           success: true,
+
           message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
         });
-        return;
+      } catch (error) {
+        console.log("error", error);
+        next(error);
       }
-
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Store user but not verified yet
-      await tx.users.create({
-        data: {
-          email,
-          password: hashedPassword,
-          lastName,
-          firstName,
-          //@ts-ignore
-          idCardUrl,
-        },
-      });
-
-      setAppCookie(res, hashedOTP, "emailVerificationOTP");
-
-      await sendEmail({ to: email, html, subject });
-
-      res.status(201).json({
-        success: true,
-
-        message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+    },
+    { maxWait: 5000, timeout: 60000 }
+  );
 };
 
 export const signOut = (_req: Request, res: Response, next: NextFunction) => {
@@ -344,10 +353,10 @@ export const forgotPassword = async (
       }
       const otp = generateOTP();
       const hashedOTP = bcrypt.hashSync(otp, 12);
-        const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
-          expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
-        });
-        const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
+      const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
+        expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
+      });
+      const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
       const html = verificationEmail({ url });
       const subject = "Password Reset OTP";
       setAppCookie(res, hashedOTP, "emailVerificationOTP");

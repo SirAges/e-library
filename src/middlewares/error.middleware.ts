@@ -77,7 +77,7 @@ const errorMiddleware = (
   logger.error(
     `Method: ${req.method}, Url: ${req.url}, StatusCode: ${statusCode}, Message: ${message}`
   );
-
+console.log('err', err)
   res.status(statusCode).json({
     error: true,
     message,
