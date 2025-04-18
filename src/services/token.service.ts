@@ -16,11 +16,11 @@ type TokenType = {
 // **Generate JWT Tokens**
 export const generateTokens = (data: TokenType) => {
   const accessToken = jwt.sign({ ...data }, JWT_SECRET!, {
-    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}m`,
+    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!) * 60}`,
   });
 
   const refreshToken = jwt.sign({ ...data }, JWT_REFRESH_SECRET!, {
-    expiresIn: `${parseInt(JWT_REFRESH_TOKEN_EXPIRES_IN!)}d`,
+    expiresIn: `${parseInt(JWT_REFRESH_TOKEN_EXPIRES_IN!) * 60 * 24}`,
   });
   return { accessToken, refreshToken };
 };
