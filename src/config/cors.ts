@@ -18,7 +18,12 @@ const corsOption = {
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept-Version"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Accept-Version",
+    "credentials",
+  ],
   exposedHeaders: ["X-Total-Count", "Content-Range"],
   credentials: true,
   preflightContinue: false,
