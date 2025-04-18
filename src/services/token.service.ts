@@ -16,7 +16,7 @@ type TokenType = {
 // **Generate JWT Tokens**
 export const generateTokens = (data: TokenType) => {
   const accessToken = jwt.sign({ ...data }, JWT_SECRET!, {
-    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
+    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}m`,
   });
 
   const refreshToken = jwt.sign({ ...data }, JWT_REFRESH_SECRET!, {
@@ -43,10 +43,10 @@ export const setAppCookie = (
   name: string
 ) => {
   res.cookie(name, token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: NODE_ENV === AppType.production,
-    sameSite: "none",
-    maxAge: 1000 * 60 * 5,
+    sameSite: NODE_ENV === AppType.production ? "None" : "Lax",
+    maxAge: 1000 * 60 * 60 * 24,
   });
 };
 

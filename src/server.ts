@@ -21,12 +21,11 @@ import setupSwagger from "./config/swagger";
 import { PORT } from "./config/env";
 import app from "./app";
 
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(helmet());
 app.use(cors(corsOption as CorsOptions));
-
 app.use(rateLimiter);
 app.use((req: Request, res: Response, next: NextFunction) => {
   logger.info(

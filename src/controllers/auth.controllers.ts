@@ -212,7 +212,7 @@ export const refreshToken = (
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
-      res.status(400).json({
+      res.status(401).json({
         error: true,
         message: `A refresh token is required to generate a new access token. Please provide a valid refresh token.`,
       });
