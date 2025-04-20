@@ -7,4 +7,6 @@ dump.rdb
 .vercel
 script.js
 book.json
-dist
+dist/
+*.tsbuildinfo
+.vscode

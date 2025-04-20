@@ -6,9 +6,10 @@ const seedDB = async () => {
   try {
     //@ts-ignore
     console.log("length of book", books.length);
+
     const jsonFilePath = "bookeverclean.json";
     //@ts-ignore
-    const newBooks = books.slice(287, 500).map(async (book) => {
+    const newBooks = books.slice(0, 500).map(async (book) => {
       const {
         bookId,
         coverImg,

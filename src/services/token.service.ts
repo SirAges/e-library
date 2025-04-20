@@ -5,9 +5,7 @@ import {
   JWT_REFRESH_SECRET,
   JWT_REFRESH_TOKEN_EXPIRES_IN,
   JWT_SECRET,
-  NODE_ENV,
 } from "../config/env";
-import { AppType } from "../lib/enums";
 type TokenType = {
   userId: number;
   role: string;
@@ -44,8 +42,8 @@ export const setAppCookie = (
 ) => {
   res.cookie(name, token, {
     httpOnly: true,
-    secure: NODE_ENV === AppType.production,
-    sameSite: NODE_ENV === AppType.production ? "None" : "Lax",
+    secure: true,
+    sameSite: "None",
     maxAge: 1000 * 60 * 60 * 24,
   });
 };
