@@ -41,7 +41,7 @@ export const setAppCookie = (
   res.cookie(name, token, {
     httpOnly: true,
     secure: true,
-    sameSite: "Lax",
+    sameSite: "None",
     maxAge: 1000 * 60 * 60 * 24,
   });
 };
