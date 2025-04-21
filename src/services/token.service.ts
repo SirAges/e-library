@@ -11,19 +11,17 @@ type TokenType = {
   role: string;
   email: string;
 };
-// **Generate JWT Tokens**
 export const generateTokens = (data: TokenType) => {
   const accessToken = jwt.sign({ ...data }, JWT_SECRET!, {
-    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!) * 60}`,
+    expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}m`,
   });
 
   const refreshToken = jwt.sign({ ...data }, JWT_REFRESH_SECRET!, {
-    expiresIn: `${parseInt(JWT_REFRESH_TOKEN_EXPIRES_IN!) * 60 * 24}`,
+    expiresIn: `${parseInt(JWT_REFRESH_TOKEN_EXPIRES_IN!)}d`,
   });
   return { accessToken, refreshToken };
 };
 
-// **Store Refresh Token in HTTP-Only Cookie**
 export const setAppCookie = (
   res: {
     cookie: (
@@ -43,7 +41,7 @@ export const setAppCookie = (
   res.cookie(name, token, {
     httpOnly: true,
     secure: true,
-    sameSite: "None",
+    sameSite: "Lax",
     maxAge: 1000 * 60 * 60 * 24,
   });
 };

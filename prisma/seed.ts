@@ -1,7 +1,6 @@
 import prisma from "../src/config/prismaClient";
 import books from "../books.json";
 
-
 const seedDB = async () => {
   try {
     //@ts-ignore
@@ -62,7 +61,10 @@ const seedDB = async () => {
         ...data,
       };
       console.log("Inserting to prisma");
-
+      const foundBook = await prisma.books.findFirst({ where: { title } });
+      if (foundBook) {
+        return;
+      }
       await prisma.books.create({ data: newBook });
     });
   } catch (error) {
@@ -82,6 +84,5 @@ function extractYear(dateStr) {
     return new Date(`${fullYear}-${mm}-${dd}`).getFullYear() || 2025;
   }
 }
-
 
 seedDB();

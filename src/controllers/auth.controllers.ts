@@ -27,78 +27,76 @@ export const signIn = async (
   res: Response,
   next: NextFunction
 ) => {
-  prisma.$transaction(async (tx) => {
-    const { password, email } = req.body;
-    try {
-      if (!email) {
-        res.status(400).json({
-          error: true,
-          message: `Your email is required to create an account. Please enter a valid email.`,
-        });
-        return;
-      }
-
-      if (!password) {
-        res.status(400).json({
-          error: true,
-          message: `Your password is required to create an account. Please enter a secure password.`,
-        });
-        return;
-      }
-
-      const existingUser = await tx.users.findFirst({
-        where: { email },
+  const { password, email } = req.body;
+  try {
+    if (!email) {
+      res.status(400).json({
+        error: true,
+        message: `Your email is required to create an account. Please enter a valid email.`,
       });
-      if (!existingUser) {
-        res.status(404).json({
-          error: true,
-          message: "Please Sign up with email to sign in. user not found",
-        });
-        return;
-      }
-
-      if (!existingUser.isVerified) {
-        res.status(403).json({
-          error: true,
-          message: `Your email address (${email}) has not been verified. Please verify your email to continue.`,
-        });
-        return;
-      }
-
-      const isPasswordValid = await bcrypt.compare(
-        password,
-        existingUser.password
-      );
-      if (!isPasswordValid) {
-        res.status(400).json({
-          error: true,
-          message: `The password you entered is incorrect. Please check your password and try again.`,
-        });
-        return;
-      }
-
-      const { accessToken, refreshToken } = generateTokens({
-        userId: existingUser.id,
-        role: existingUser.role!,
-        email: existingUser.email,
-      });
-      setAppCookie(res, refreshToken, "refreshToken");
-      await tx.users.update({
-        where: { id: existingUser.id },
-        data: {
-          lastLogin: new Date().toISOString(),
-        },
-      });
-      await scheduleLoginReminder(existingUser.id);
-      res.status(200).json({
-        success: true,
-        message: `You have successfully signed in.`,
-        data: accessToken,
-      });
-    } catch (error) {
-      next(error);
+      return;
     }
-  });
+
+    if (!password) {
+      res.status(400).json({
+        error: true,
+        message: `Your password is required to create an account. Please enter a secure password.`,
+      });
+      return;
+    }
+
+    const existingUser = await prisma.users.findFirst({
+      where: { email },
+    });
+    if (!existingUser) {
+      res.status(404).json({
+        error: true,
+        message: "Please Sign up with email to sign in. user not found",
+      });
+      return;
+    }
+
+    if (!existingUser.isVerified) {
+      res.status(403).json({
+        error: true,
+        message: `Your email address (${email}) has not been verified. Please verify your email to continue.`,
+      });
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      existingUser.password
+    );
+    if (!isPasswordValid) {
+      res.status(400).json({
+        error: true,
+        message: `The password you entered is incorrect. Please check your password and try again.`,
+      });
+      return;
+    }
+
+    const { accessToken, refreshToken } = generateTokens({
+      userId: existingUser.id,
+      role: existingUser.role!,
+      email: existingUser.email,
+    });
+    setAppCookie(res, refreshToken, "refreshToken");
+    await prisma.users.update({
+      where: { id: existingUser.id },
+      data: {
+        lastLogin: new Date().toISOString(),
+      },
+    });
+    await scheduleLoginReminder(existingUser.id);
+    res.status(200).json({
+      success: true,
+      message: `You have successfully signed in.`,
+      data: accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const signUp = async (
@@ -109,87 +107,82 @@ export const signUp = async (
   console.log("req.body", req.body);
   const { email, password, lastName, firstName } = req.body;
   const { idCardUrl } = req.uploadedFiles!;
-  await prisma.$transaction(
-    async (tx) => {
-      try {
-        if (!email) {
-          res.status(400).json({
-            error: true,
-            message: `Your email is required to create an account. Please enter a valid email.`,
-          });
-          return;
-        }
+  try {
+    if (!email) {
+      res.status(400).json({
+        error: true,
+        message: `Your email is required to create an account. Please enter a valid email.`,
+      });
+      return;
+    }
 
-        if (!password) {
-          res.status(400).json({
-            error: true,
-            message: `Your password is required to create an account. Please enter a secure password.`,
-          });
-          return;
-        }
+    if (!password) {
+      res.status(400).json({
+        error: true,
+        message: `Your password is required to create an account. Please enter a secure password.`,
+      });
+      return;
+    }
 
-        const existingUser = await tx.users.findFirst({
-          where: { email },
-          select: { isVerified: true },
-        });
-        // If user exists and is verified, return message
-        if (existingUser && existingUser.isVerified) {
-          res.status(409).json({
-            error: true,
-            message: `An account with this email address (${email}) already exists. Please sign in or use a different email.`,
-          });
-          return;
-        }
-        const otp = generateOTP();
-        const hashedOTP = bcrypt.hashSync(otp, 12);
-        const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
-          expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
-        });
-        const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
-        const html = verificationEmail({ url });
-        const subject = "Email Verification";
+    const existingUser = await prisma.users.findFirst({
+      where: { email },
+      select: { isVerified: true },
+    });
+    // If user exists and is verified, return message
+    if (existingUser && existingUser.isVerified) {
+      res.status(409).json({
+        error: true,
+        message: `An account with this email address (${email}) already exists. Please sign in or use a different email.`,
+      });
+      return;
+    }
+    const otp = generateOTP();
+    const hashedOTP = bcrypt.hashSync(otp, 12);
+    const verificationToken = jwt.sign({ otp, email }, JWT_SECRET!, {
+      expiresIn: `${parseInt(JWT_ACCESS_TOKEN_EXPIRES_IN!)}d`,
+    });
+    const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
+    const html = verificationEmail({ url });
+    const subject = "Email Verification";
 
-        // If user exists and is NOT verified, send another OTP
-        if (existingUser && !existingUser.isVerified) {
-          setAppCookie(res, hashedOTP, "emailVerificationOTP");
-          await sendEmail({ to: email, html, subject });
-          res.status(201).json({
-            success: true,
-            message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
-          });
-          return;
-        }
+    // If user exists and is NOT verified, send another OTP
+    if (existingUser && !existingUser.isVerified) {
+      setAppCookie(res, hashedOTP, "emailVerificationOTP");
+      await sendEmail({ to: email, html, subject });
+      res.status(201).json({
+        success: true,
+        message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
+      });
+      return;
+    }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Store user but not verified yet
-        await tx.users.create({
-          data: {
-            email,
-            password: hashedPassword,
-            lastName,
-            firstName,
-            //@ts-ignore
-            idCardUrl,
-          },
-        });
+    // Store user but not verified yet
+    await prisma.users.create({
+      data: {
+        email,
+        password: hashedPassword,
+        lastName,
+        firstName,
+        //@ts-ignore
+        idCardUrl,
+      },
+    });
 
-        setAppCookie(res, hashedOTP, "emailVerificationOTP");
+    setAppCookie(res, hashedOTP, "emailVerificationOTP");
 
-        await sendEmail({ to: email, html, subject });
+    await sendEmail({ to: email, html, subject });
 
-        res.status(201).json({
-          success: true,
+    res.status(201).json({
+      success: true,
 
-          message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
-        });
-      } catch (error) {
-        console.log("error", error);
-        next(error);
-      }
-    },
-    { maxWait: 5000, timeout: 60000 }
-  );
+      message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
+    });
+  } catch (error) {
+    console.log("error", error);
+    next(error);
+  }
 };
 
 export const signOut = (_req: Request, res: Response, next: NextFunction) => {
@@ -220,7 +213,7 @@ export const refreshToken = (
     }
     const decoded = verifyToken(refreshToken, JWT_REFRESH_SECRET!);
     if (!decoded || typeof decoded === "string") {
-      res.status(403).json({
+      res.status(400).json({
         error: true,
         message: `The refresh token is invalid or has expired. Please sign in again to continue.`,
       });
