@@ -279,24 +279,7 @@ export const verifyEmail = async (
         });
         return;
       }
-      const hashedOTP = req.cookies?.emailVerificationOTP;
-
-      if (!hashedOTP) {
-        res.status(404).json({
-          error: true,
-          message: `The OTP has expired or is missing. Please request a new OTP and try again.`,
-        });
-        return;
-      }
-      const validateOtp = bcrypt.compareSync(otp, hashedOTP);
-
-      if (!validateOtp) {
-        res.status(400).json({
-          error: true,
-          message: `The OTP you entered is incorrect. Please check the code and try again.`,
-        });
-        return;
-      }
+    
 
       const data = await tx.users.update({
         data: { isVerified: true },
