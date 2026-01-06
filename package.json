@@ -4,13 +4,15 @@
   "main": "server.js",
   "scripts": {
     "test": "jest",
-    "dev": "concurrently \"npm run redis\" \"npm run db\" \"npm run server\"",
+    "dev": "concurrently \"npm run redis\" \"npm run server\"",
     "server": "nodemon --ext ts --exec ts-node src/server.ts",
-    "db": "npx prisma migrate dev --name init",
-    "redis": "redis-server",
+    "db:init": "npx prisma migrate dev --name init",
+    "redis": "Memurai",
     "build": "tsc",
-    "start": "node dist/server.js",
-    "seed": "node --max-old-space-size=4096 -r ts-node/register prisma/seed.ts"
+    "start": "node dist/src/server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node --max-old-space-size=4096 -r ts-node/register prisma/seed.ts"
   },
   "keywords": [
     "express",

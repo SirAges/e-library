@@ -1,27 +1,35 @@
-import { NextFunction, Request as ExpressRequest, Response } from "express";
-import prisma from "../config/prismaClient";
 import bcrypt from "bcryptjs";
-import { generateOTP } from "../lib/utils";
+import {
+  CookieOptions,
+  Request as ExpressRequest,
+  NextFunction,
+  Response,
+} from "express";
+import jwt from "jsonwebtoken";
 import {
   CLIENT_URL,
   JWT_ACCESS_TOKEN_EXPIRES_IN,
   JWT_REFRESH_SECRET,
   JWT_SECRET,
 } from "../config/env";
-import { sendEmail } from "../services/email.service";
-import {
-  generateTokens,
-  setAppCookie,
-  verifyToken,
-} from "../services/token.service";
-import { scheduleLoginReminder } from "../services/reminder.service";
+import prisma from "../config/prismaClient";
 import { verificationEmail } from "../lib/html.string";
-import jwt from "jsonwebtoken";
+import { generateOTP } from "../lib/utils";
+import { sendEmail } from "../services/email.service";
+import { scheduleLoginReminder } from "../services/reminder.service";
+import { generateTokens, verifyToken } from "../services/token.service";
 
 interface Request extends ExpressRequest {
   uploadedFiles?: Record<string, CloudinaryFile>;
 }
 
+const cookieOptions = {
+  secure: process.env.Node_ENV === "production",
+  httpOnly: true,
+  sameSite: "lax",
+  maxAge: 86400,
+  path: "/",
+} as CookieOptions;
 export const signIn = async (
   req: Request,
   res: Response,
@@ -57,7 +65,7 @@ export const signIn = async (
     }
 
     if (!existingUser.isVerified) {
-      res.status(403).json({
+      res.status(401).json({
         error: true,
         message: `Your email address (${email}) has not been verified. Please verify your email to continue.`,
       });
@@ -81,7 +89,7 @@ export const signIn = async (
       role: existingUser.role!,
       email: existingUser.email,
     });
-    setAppCookie(res, refreshToken, "refreshToken");
+    res.cookie("refreshToken", refreshToken, cookieOptions);
     await prisma.users.update({
       where: { id: existingUser.id },
       data: {
@@ -104,7 +112,6 @@ export const signUp = async (
   res: Response,
   next: NextFunction
 ) => {
-  console.log("req.body", req.body);
   const { email, password, lastName, firstName } = req.body;
   const { idCardUrl } = req.uploadedFiles!;
   try {
@@ -147,7 +154,7 @@ export const signUp = async (
 
     // If user exists and is NOT verified, send another OTP
     if (existingUser && !existingUser.isVerified) {
-      setAppCookie(res, hashedOTP, "emailVerificationOTP");
+      res.cookie("emailVerificationOTP", hashedOTP, cookieOptions);
       await sendEmail({ to: email, html, subject });
       res.status(201).json({
         success: true,
@@ -169,8 +176,7 @@ export const signUp = async (
         idCardUrl,
       },
     });
-
-    setAppCookie(res, hashedOTP, "emailVerificationOTP");
+    res.cookie("emailVerificationOTP", hashedOTP, cookieOptions);
 
     await sendEmail({ to: email, html, subject });
 
@@ -180,7 +186,6 @@ export const signUp = async (
       message: `A one-time password (OTP) has been sent to your email address (${email}). Please enter the OTP within 5 minutes to verify your account.`,
     });
   } catch (error) {
-    console.log("error", error);
     next(error);
   }
 };
@@ -225,7 +230,7 @@ export const refreshToken = (
       role: decoded.role,
       email: decoded.email,
     });
-    setAppCookie(res, newRefreshToken, "refreshToken");
+    res.cookie("refreshToken", newRefreshToken, cookieOptions);
 
     res.status(200).json({
       success: true,
@@ -279,7 +284,6 @@ export const verifyEmail = async (
         });
         return;
       }
-    
 
       const data = await tx.users.update({
         data: { isVerified: true },
@@ -335,7 +339,7 @@ export const forgotPassword = async (
       const url = `${CLIENT_URL}/auth/verify?token=${verificationToken}`;
       const html = verificationEmail({ url });
       const subject = "Password Reset OTP";
-      setAppCookie(res, hashedOTP, "emailVerificationOTP");
+      res.cookie("emailVerificationOTP", hashedOTP, cookieOptions);
       await sendEmail({ to: email, html, subject });
 
       res.status(200).json({

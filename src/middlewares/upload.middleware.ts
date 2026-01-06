@@ -1,4 +1,4 @@
-import { Request as ExpressRequest, Response, NextFunction } from "express";
+import { Request as ExpressRequest, NextFunction, Response } from "express";
 import cloudinary from "../config/cloudinary";
 import { ErrorName } from "../lib/enums";
 
@@ -46,7 +46,7 @@ const uploadFile = async (
         : "raw";
 
       const options = {
-        folder: "labook",
+        folder: "readora",
         resource_type: resourceType as "image" | "video" | "raw",
         use_filename: true,
         unique_filename: false,

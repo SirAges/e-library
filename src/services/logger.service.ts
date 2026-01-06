@@ -10,7 +10,7 @@ const logger = winston.createLogger({
     winston.format.splat(),
     winston.format.json()
   ),
-  defaultMeta: { labook: "logger" },
+  defaultMeta: { readora: "logger" },
   transports: [
     new winston.transports.Console({
       format: winston.format.combine(

@@ -1,25 +1,25 @@
-import express, { NextFunction, Request, Response } from "express";
-import path from "path";
-import errorMiddleware from "./middlewares/error.middleware";
-import authRouter from "./routes/auth.routes";
-import userRouter from "./routes/user.routes";
-import { userAuthorization } from "./middlewares/auth.middleware";
-import bookRouter from "./routes/book.routes";
-import borrowRouter from "./routes/borrow.routes";
-import reviewRouter from "./routes/review.routes";
 import cookieParser from "cookie-parser";
 import cors, { CorsOptions } from "cors";
+import express, { NextFunction, Request, Response } from "express";
 import helmet from "helmet";
+import path from "path";
+import app from "./app";
+import corsOption from "./config/cors";
+import { PORT } from "./config/env";
+import redis from "./config/redisClient";
+import setupSwagger from "./config/swagger";
+import { userAuthorization } from "./middlewares/auth.middleware";
+import errorMiddleware from "./middlewares/error.middleware";
 import {
   rateLimiter,
   sensitiveEndpointsLimiter,
 } from "./middlewares/rate.limit.middleware";
+import authRouter from "./routes/auth.routes";
+import bookRouter from "./routes/book.routes";
+import borrowRouter from "./routes/borrow.routes";
+import reviewRouter from "./routes/review.routes";
+import userRouter from "./routes/user.routes";
 import logger from "./services/logger.service";
-import corsOption from "./config/cors";
-import redis from "./config/redisClient";
-import setupSwagger from "./config/swagger";
-import { PORT } from "./config/env";
-import app from "./app";
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
